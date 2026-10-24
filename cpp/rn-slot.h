@@ -50,6 +50,16 @@ enum llama_rn_slot_state {
 
 // Per-slot completion state
 struct llama_rn_slot {
+    // Déplaçable mais pas copiable : `spec_batch` est un `common_batch`, qui
+    // tient une ressource et ne se copie pas (montée vers llama.cpp v0.7.0,
+    // 2026-10-24). Sans ces déclarations, le `std::vector<llama_rn_slot>` du
+    // gestionnaire ne pouvait plus se redimensionner — il exigeait une copie
+    // que le compilateur venait de supprimer.
+    llama_rn_slot(llama_rn_slot &&) = default;
+    llama_rn_slot & operator=(llama_rn_slot &&) = default;
+    llama_rn_slot(const llama_rn_slot &) = delete;
+    llama_rn_slot & operator=(const llama_rn_slot &) = delete;
+
     // Slot identification
     int32_t id;                    // Slot index (0 to n_parallel-1)
     int32_t request_id;            // Unique request identifier
@@ -118,7 +128,11 @@ struct llama_rn_slot {
     common_speculative *spec = nullptr;
     llama_context *spec_ctx = nullptr;
     bool spec_is_shared = false;
-    llama_batch spec_batch = {};
+    // `common_batch` depuis la montée à v0.7.0 (2026-10-24) : les fonctions
+    // libres `common_batch_clear`/`common_batch_add` ont disparu au profit
+    // des méthodes de cette structure, et c'est elle que
+    // `common_speculative_process` attend désormais.
+    common_batch spec_batch;
     bool spec_batch_initialized = false;
     llama_tokens spec_prompt;
     llama_token spec_id_last = LLAMA_TOKEN_NULL;

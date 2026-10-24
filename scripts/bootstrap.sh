@@ -413,10 +413,9 @@ cp -r ./$LLAMA_DIR/vendor/stb ./cpp/tools/mtmd/stb
 mkdir -p ./cpp/tools/mtmd/hash
 cp ./$LLAMA_DIR/vendor/hash/hash.h ./cpp/tools/mtmd/hash/hash.h
 cp ./$LLAMA_DIR/vendor/hash/hash.cpp ./cpp/tools/mtmd/hash/hash.cpp
-if [ -d ./$LLAMA_DIR/vendor/hash/rotate-bits ]; then
-  mkdir -p ./cpp/tools/mtmd/hash/rotate-bits
-  cp -r ./$LLAMA_DIR/vendor/hash/rotate-bits/* ./cpp/tools/mtmd/hash/rotate-bits/
-fi
+# Tout le dossier : hash.cpp inclut sha256/ et rotate-bits/.
+cp -r ./$LLAMA_DIR/vendor/hash/* ./cpp/tools/mtmd/hash/
+rm -f ./cpp/tools/mtmd/hash/CMakeLists.txt
 
 # Copy codec.cpp sources into cpp/codec
 rm -rf ./cpp/codec

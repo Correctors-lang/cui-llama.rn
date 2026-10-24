@@ -134,7 +134,11 @@ struct llama_rn_context_completion {
     // Speculative decoding context for MTP.
     common_speculative *spec = nullptr;
     llama_context_ptr spec_ctx;
-    llama_batch spec_batch = {};
+    // `common_batch` depuis la montée à v0.7.0 (2026-10-24) : les fonctions
+    // libres `common_batch_clear`/`common_batch_add` ont disparu au profit
+    // des méthodes de cette structure, et c'est elle que
+    // `common_speculative_process` attend désormais.
+    common_batch spec_batch;
     bool spec_batch_initialized = false;
     llama_tokens spec_prompt;
     llama_token spec_id_last = LLAMA_TOKEN_NULL;

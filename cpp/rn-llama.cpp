@@ -593,10 +593,13 @@ common_chat_params llama_rn_context::getFormattedChatWithJinja(
 ) const {
     common_chat_templates_inputs inputs;
     inputs.use_jinja = true;
-    inputs.messages = common_chat_msgs_parse_oaicompat(json::parse(messages));
+    // L'amont a remplacé nlohmann par son propre `common_json` dans l'API de
+    // discussion (v0.7.0) : c'est lui qui analyse la chaîne désormais
+    // (2026-10-24).
+    inputs.messages = common_chat_msgs_parse_oaicompat(common_json::parse(messages));
     auto useTools = !tools.empty();
     if (useTools) {
-        inputs.tools = common_chat_tools_parse_oaicompat(json::parse(tools));
+        inputs.tools = common_chat_tools_parse_oaicompat(common_json::parse(tools));
     }
     inputs.parallel_tool_calls = parallel_tool_calls;
     if (!tool_choice.empty()) {
@@ -638,15 +641,18 @@ std::string llama_rn_context::getFormattedChat(
   const std::string &chat_template
 ) const {
     common_chat_templates_inputs inputs;
-    inputs.messages = common_chat_msgs_parse_oaicompat(json::parse(messages));
+    inputs.messages = common_chat_msgs_parse_oaicompat(common_json::parse(messages));
     inputs.use_jinja = false;
 
     // If chat_template is provided, create new one and use it (probably slow)
     if (!chat_template.empty()) {
         auto tmps = common_chat_templates_init(model, chat_template);
-        return common_chat_templates_apply(tmps.get(), inputs).prompt;
+        // `prompt` n'est plus une chaîne mais une suite de morceaux, pour
+        // distinguer le texte du gabarit de l'entrée de l'utilisateur :
+        // `str()` la recompose (montée vers v0.7.0, 2026-10-24).
+        return common_chat_templates_apply(tmps.get(), inputs).prompt.str();
     } else {
-        return common_chat_templates_apply(templates.get(), inputs).prompt;
+        return common_chat_templates_apply(templates.get(), inputs).prompt.str();
     }
 }
 

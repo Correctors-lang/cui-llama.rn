@@ -650,8 +650,8 @@ void llama_rn_context_completion::resetSpeculative() {
     }
     spec_ctx.reset();
     if (spec_batch_initialized) {
-        llama_batch_free(spec_batch);
-        spec_batch = {};
+        // `common_batch` libère ce qu'elle tient : plus de llama_batch_free.
+        spec_batch = common_batch();
         spec_batch_initialized = false;
     }
     spec_prompt.clear();
@@ -695,7 +695,7 @@ void llama_rn_context_completion::initMTP() {
         throw std::runtime_error("failed to initialize MTP speculative decoding");
     }
 
-    spec_batch = llama_batch_init(llama_n_batch(parent_ctx->ctx), 0, 1);
+    spec_batch = common_batch(parent_ctx->ctx);
     spec_batch_initialized = true;
 
     // A mem-shared draft (e.g. gemma4/EAGLE3) shares the target's KV cells, where
@@ -749,18 +749,21 @@ void llama_rn_context_completion::evalMTPPrompt() {
             }
         }
 
-        common_batch_clear(spec_batch);
+        spec_batch.clear();
 
         const size_t n_eval = std::min<size_t>(n_batch, decode_to - offset);
         for (size_t i = 0; i < n_eval; ++i) {
             // MTP consumes pre-norm embeddings from every target row, but prompt logits are unused.
             // Keep one output row per decode batch to preserve the usual llama.cpp graph shape.
             const bool needs_logits = i + 1 == n_eval;
-            common_batch_add(spec_batch, spec_prompt[offset + i],
-                             (llama_pos) (offset + i), { seq_id }, needs_logits);
+            spec_batch.add(spec_prompt[offset + i],
+                           (llama_pos) (offset + i), seq_id, needs_logits);
         }
 
-        const int ret = llama_decode(parent_ctx->ctx, spec_batch);
+        // Le décodage passe par `llama_process` : `common_batch` rend un
+        // `llama_batch_ext *`, et c'est la porte d'entrée de l'amont depuis
+        // que les lots sont opaques.
+        const int ret = llama_process(parent_ctx->ctx, LLAMA_PROCESS_TYPE_DECODE, spec_batch.get());
         if (ret != 0) {
             // Memory holds only [0, offset); trim embd so a later prefix match
             // can't claim never-decoded cells (mirrors nextToken).
@@ -847,14 +850,14 @@ bool llama_rn_context_completion::refillMTPTokens() {
     const size_t n_draft = spec_draft.size();
     num_draft_tokens += n_draft;
 
-    common_batch_clear(spec_batch);
-    common_batch_add(spec_batch, spec_id_last, spec_n_past, { seq_id }, true);
+    spec_batch.clear();
+    spec_batch.add(spec_id_last, spec_n_past, seq_id, true);
     for (size_t i = 0; i < n_draft; ++i) {
-        common_batch_add(spec_batch, spec_draft[i],
-                         spec_n_past + (llama_pos) i + 1, { seq_id }, true);
+        spec_batch.add(spec_draft[i],
+                       spec_n_past + (llama_pos) i + 1, seq_id, true);
     }
 
-    const int ret = llama_decode(parent_ctx->ctx, spec_batch);
+    const int ret = llama_process(parent_ctx->ctx, LLAMA_PROCESS_TYPE_DECODE, spec_batch.get());
     if (ret != 0) {
         throw std::runtime_error("failed to evaluate MTP target batch, ret=" + std::to_string(ret));
     }
@@ -1751,16 +1754,19 @@ completion_token_output llama_rn_context_completion::doCompletion()
 completion_chat_output llama_rn_context_completion::parseChatOutput(bool is_partial) {
     common_chat_parser_params syntax;
     syntax.format = static_cast<common_chat_format>(current_chat_format);
-    syntax.reasoning_format = current_reasoning_format;
-    syntax.generation_prompt = current_generation_prompt;
-    syntax.parse_tool_calls = true;
+    // Trois choses ont changé en amont avec v0.7.0 (2026-10-24) :
+    //   - `reasoning_format` et `parse_tool_calls` ont quitté la structure :
+    //     le format décide désormais seul de ce qui est analysé ;
+    //   - `generation_prompt` est un `common_chat_input`, qui porte le texte
+    //     ET ses jetons ;
+    //   - l'arène PEG ne se charge plus depuis une chaîne sérialisée
+    //     (`parser.load`) : elle se construit programmatiquement
+    //     (`build_chat_peg_parser`). Un analyseur fourni par l'appelant ne
+    //     peut donc plus être repris tel quel, et il est ignoré.
+    syntax.generation_prompt = common_chat_input(current_generation_prompt);
 
-    // Load the PEG parser if available (required for COMMON_CHAT_FORMAT_PEG_* formats)
-    if (!current_chat_parser.empty()) {
-        syntax.parser.load(current_chat_parser);
-    }
-
-    common_chat_msg parsed_msg = common_chat_parse(prefill_text + generated_text, is_partial, syntax);
+    common_chat_msg parsed_msg =
+        common_chat_parse(common_chat_input(prefill_text + generated_text), is_partial, syntax);
 
     completion_chat_output result;
 
