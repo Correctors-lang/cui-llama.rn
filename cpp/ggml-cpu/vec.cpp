@@ -342,24 +342,24 @@ void lm_ggml_vec_dot_f16(int n, float * LM_GGML_RESTRICT s, size_t bs, lm_ggml_f
             }
         #endif // __riscv_zvfh
     #else
-        const int np = (n & ~(LM_GGML_F16_STEP - 1));
+        const int np = (n & ~(LM_GGML_F16_DOT_STEP - 1));
 
-        LM_GGML_F16_VEC sum[LM_GGML_F16_ARR] = { LM_GGML_F16_VEC_ZERO };
+        LM_GGML_F16_DOT_VEC sum[LM_GGML_F16_DOT_ARR] = { LM_GGML_F16_DOT_VEC_ZERO };
 
-        LM_GGML_F16_VEC ax[LM_GGML_F16_ARR];
-        LM_GGML_F16_VEC ay[LM_GGML_F16_ARR];
+        LM_GGML_F16_DOT_VEC ax[LM_GGML_F16_DOT_ARR];
+        LM_GGML_F16_DOT_VEC ay[LM_GGML_F16_DOT_ARR];
 
-        for (int i = 0; i < np; i += LM_GGML_F16_STEP) {
-            for (int j = 0; j < LM_GGML_F16_ARR; j++) {
-                ax[j] = LM_GGML_F16_VEC_LOAD(x + i + j*LM_GGML_F16_EPR, j);
-                ay[j] = LM_GGML_F16_VEC_LOAD(y + i + j*LM_GGML_F16_EPR, j);
+        for (int i = 0; i < np; i += LM_GGML_F16_DOT_STEP) {
+            for (int j = 0; j < LM_GGML_F16_DOT_ARR; j++) {
+                ax[j] = LM_GGML_F16_DOT_VEC_LOAD(x + i + j*LM_GGML_F16_DOT_EPR, j);
+                ay[j] = LM_GGML_F16_DOT_VEC_LOAD(y + i + j*LM_GGML_F16_DOT_EPR, j);
 
-                sum[j] = LM_GGML_F16_VEC_FMA(sum[j], ax[j], ay[j]);
+                sum[j] = LM_GGML_F16_DOT_VEC_FMA(sum[j], ax[j], ay[j]);
             }
         }
 
         // reduce sum0..sum3 to sum0
-        LM_GGML_F16_VEC_REDUCE(sumf, sum);
+        LM_GGML_F16_DOT_VEC_REDUCE(sumf, sum);
 
         // leftovers
         for (int i = np; i < n; ++i) {

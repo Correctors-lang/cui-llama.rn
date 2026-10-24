@@ -109,7 +109,11 @@ lm_ggml_tensor * clip_graph_qwen3tts_gen::code_gen::causal_mask_row(int64_t n_kv
     lm_ggml_tensor * keep = lm_ggml_tri(ctx0, ones, LM_GGML_TRI_TYPE_LOWER_DIAG);
     lm_ggml_tensor * row  = lm_ggml_view_1d(ctx0, keep, n_kv_pad, (size_t) pos * keep->nb[1]);
     lm_ggml_tensor * mask = lm_ggml_log(ctx0, row); // 0 = keep, -inf = masked
-    return lm_ggml_reshape_4d(ctx0, mask, n_kv_pad, 1, 1, 1);
+    mask = lm_ggml_reshape_4d(ctx0, mask, n_kv_pad, 1, 1, 1);
+    if (flash_attn_type == CLIP_FLASH_ATTN_TYPE_ENABLED) {
+        mask = lm_ggml_cast(ctx0, mask, LM_GGML_TYPE_F16);
+    }
+    return mask;
 }
 
 // talker hidden size -> predictor hidden size (small_to_mtp_projection)
@@ -481,6 +485,9 @@ lm_ggml_tensor * clip_graph_qwen3tts_gen::code2wav::tfm_layer_forward(lm_ggml_te
     keep = lm_ggml_mul(ctx0, keep, warm);
 
     lm_ggml_tensor * mask = lm_ggml_reshape_4d(ctx0, lm_ggml_log(ctx0, keep), total_kv, N, 1, 1); // 0 = keep, -inf = masked
+    if (flash_attn_type == CLIP_FLASH_ATTN_TYPE_ENABLED) {
+        mask = lm_ggml_cast(ctx0, mask, LM_GGML_TYPE_F16);
+    }
 
     lm_ggml_tensor * q_cur = lm_ggml_reshape_4d(ctx0, q, d_head, n_head, N, 1);
     lm_ggml_tensor * k_cur = lm_ggml_reshape_4d(ctx0, k_full, d_head, n_head_kv, total_kv, 1);

@@ -330,6 +330,8 @@ static const char * lm_ggml_backend_blas_device_get_description(lm_ggml_backend_
         return "Accelerate";
     #elif defined(LM_GGML_BLAS_USE_MKL)
         return "MKL";
+    #elif defined(LM_GGML_BLAS_USE_AOCL)
+        return "AOCL-BLAS";
     #elif defined(LM_GGML_BLAS_USE_BLIS)
         return "BLIS";
     #elif defined(LM_GGML_BLAS_USE_NVPL)

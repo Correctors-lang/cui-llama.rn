@@ -33,6 +33,7 @@ lm_ggml_metal_event_t lm_ggml_metal_get_ev_cpy(lm_ggml_metal_t ctx);
 
 void lm_ggml_metal_set_n_cb            (lm_ggml_metal_t ctx, int n_cb);
 void lm_ggml_metal_set_abort_callback  (lm_ggml_metal_t ctx, lm_ggml_abort_callback abort_callback, void * user_data);
+
 bool lm_ggml_metal_supports_family     (lm_ggml_metal_t ctx, int family);
 void lm_ggml_metal_capture_next_compute(lm_ggml_metal_t ctx);
 

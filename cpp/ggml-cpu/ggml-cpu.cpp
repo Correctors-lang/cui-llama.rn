@@ -451,7 +451,14 @@ static bool lm_ggml_backend_cpu_device_supports_op(lm_ggml_backend_dev_t dev, co
                 op->type != LM_GGML_TYPE_IQ1_S   &&
                 op->type != LM_GGML_TYPE_IQ1_M; // missing type_traits.from_float
         case LM_GGML_OP_MUL_MAT:
-            return src1->type == LM_GGML_TYPE_F32 || src1->type == lm_ggml_get_type_traits_cpu(src0->type)->vec_dot_type;
+            if (lm_ggml_get_op_params_i32(op, 1) == LM_GGML_HINT_SRC0_IS_HADAMARD &&
+                src0->type == LM_GGML_TYPE_F32 && op->type == LM_GGML_TYPE_F32) {
+                return src1->type == LM_GGML_TYPE_F32 || src1->type == LM_GGML_TYPE_F16;
+            }
+            // BF16 in src1 is widened into the F32 work buffer
+            return src1->type == LM_GGML_TYPE_F32 ||
+                   src1->type == lm_ggml_get_type_traits_cpu(src0->type)->vec_dot_type ||
+                   (src1->type == LM_GGML_TYPE_BF16 && lm_ggml_get_type_traits_cpu(src0->type)->vec_dot_type == LM_GGML_TYPE_F32);
         case LM_GGML_OP_SOFT_MAX_BACK: {
             if (op->src[0]->type != LM_GGML_TYPE_F32 || op->src[1]->type != LM_GGML_TYPE_F32) {
                 return false;
@@ -472,6 +479,8 @@ static bool lm_ggml_backend_cpu_device_supports_op(lm_ggml_backend_dev_t dev, co
                 src1->type == LM_GGML_TYPE_F32 && op->type == LM_GGML_TYPE_F32;
         case LM_GGML_OP_CONV_2D:
             return lm_ggml_is_contiguous(op->src[0]);
+        case LM_GGML_OP_SSM_SCAN:
+            return lm_ggml_get_op_params_i32(op, 0) == 1 || op->src[3]->ne[0] == 1;
         default:
             return true;
     }

@@ -4,8 +4,10 @@
 #include "ggml-backend-impl.h"
 
 #include "ggml-metal-device.h"
+#include "ggml-metal-fusion.h"
 #include "ggml-metal-context.h"
 #include "ggml-metal-ops.h"
+#include "ggml-metal-tuning.h"
 
 #include <mutex>
 #include <string>
@@ -203,6 +205,11 @@ static lm_ggml_backend_buffer_t lm_ggml_backend_metal_buffer_type_alloc_buffer(l
     lm_ggml_metal_device_t ctx_dev = (lm_ggml_metal_device_t)buft->device->context;
     lm_ggml_metal_buffer_t res = lm_ggml_metal_buffer_init(ctx_dev, size, shared);
 
+    if (res == NULL) {
+        LM_GGML_LOG_ERROR("%s: failed to allocate Metal buffer of %zu bytes (out of memory)\n", __func__, size);
+        return NULL;
+    }
+
     lm_ggml_backend_buffer_i buf_i = lm_ggml_metal_buffer_is_shared(res)
         ? lm_ggml_backend_metal_buffer_shared_i
         : lm_ggml_backend_metal_buffer_private_i;
@@ -219,12 +226,15 @@ static size_t lm_ggml_backend_metal_buffer_type_get_alloc_size(lm_ggml_backend_b
             {
                 res += lm_ggml_metal_op_mul_mat_id_extra_tpe(tensor);
                 res += lm_ggml_metal_op_mul_mat_id_extra_ids(tensor);
+                res += lm_ggml_metal_op_mul_mat_id_extra_amax(tensor);
             } break;
         case LM_GGML_OP_FLASH_ATTN_EXT:
             {
                 res += lm_ggml_metal_op_flash_attn_ext_extra_pad(tensor);
                 res += lm_ggml_metal_op_flash_attn_ext_extra_blk(tensor);
                 res += lm_ggml_metal_op_flash_attn_ext_extra_tmp(tensor);
+                res += lm_ggml_metal_op_flash_attn_ext_extra_kv_f16(tensor);
+                res += lm_ggml_metal_op_flash_attn_ext_extra_idx(tensor);
             } break;
         case LM_GGML_OP_CUMSUM:
         case LM_GGML_OP_ARGSORT:
@@ -300,12 +310,14 @@ static lm_ggml_backend_buffer_type_t lm_ggml_backend_metal_buffer_type_shared(in
 
             lm_ggml_backend_buffer_type buft = {
                 /* .iface = */ {
-                    /* .get_name         = */ lm_ggml_backend_metal_buffer_type_shared_get_name,
-                    /* .alloc_buffer     = */ lm_ggml_backend_metal_buffer_type_shared_alloc_buffer,
-                    /* .get_alignment    = */ lm_ggml_backend_metal_buffer_type_shared_get_alignment,
-                    /* .get_max_size     = */ lm_ggml_backend_metal_buffer_type_shared_get_max_size,
-                    /* .get_alloc_size   = */ lm_ggml_backend_metal_buffer_type_shared_get_alloc_size,
-                    /* .is_host          = */ lm_ggml_backend_metal_buffer_type_shared_is_host,
+                    /* .get_name            = */ lm_ggml_backend_metal_buffer_type_shared_get_name,
+                    /* .alloc_buffer        = */ lm_ggml_backend_metal_buffer_type_shared_alloc_buffer,
+                    /* .alloc_buffer_n      = */ NULL,
+                    /* .get_alignment       = */ lm_ggml_backend_metal_buffer_type_shared_get_alignment,
+                    /* .get_max_size        = */ lm_ggml_backend_metal_buffer_type_shared_get_max_size,
+                    /* .get_alloc_size      = */ lm_ggml_backend_metal_buffer_type_shared_get_alloc_size,
+                    /* .get_alloc_size_n    = */ NULL,
+                    /* .is_host             = */ lm_ggml_backend_metal_buffer_type_shared_is_host,
                 },
                 /* .device  = */ lm_ggml_backend_reg_dev_get(lm_ggml_backend_metal_reg(), i),
                 /* .context = */ raw_ctx,
@@ -375,12 +387,14 @@ static lm_ggml_backend_buffer_type_t lm_ggml_backend_metal_buffer_type_private(i
 
             lm_ggml_backend_buffer_type buft = {
                 /* .iface = */ {
-                    /* .get_name         = */ lm_ggml_backend_metal_buffer_type_private_get_name,
-                    /* .alloc_buffer     = */ lm_ggml_backend_metal_buffer_type_private_alloc_buffer,
-                    /* .get_alignment    = */ lm_ggml_backend_metal_buffer_type_private_get_alignment,
-                    /* .get_max_size     = */ lm_ggml_backend_metal_buffer_type_private_get_max_size,
-                    /* .get_alloc_size   = */ lm_ggml_backend_metal_buffer_type_private_get_alloc_size,
-                    /* .is_host          = */ lm_ggml_backend_metal_buffer_type_private_is_host,
+                    /* .get_name            = */ lm_ggml_backend_metal_buffer_type_private_get_name,
+                    /* .alloc_buffer        = */ lm_ggml_backend_metal_buffer_type_private_alloc_buffer,
+                    /* .alloc_buffer_n      = */ NULL,
+                    /* .get_alignment       = */ lm_ggml_backend_metal_buffer_type_private_get_alignment,
+                    /* .get_max_size        = */ lm_ggml_backend_metal_buffer_type_private_get_max_size,
+                    /* .get_alloc_size      = */ lm_ggml_backend_metal_buffer_type_private_get_alloc_size,
+                    /* .get_alloc_size_n    = */ NULL,
+                    /* .is_host             = */ lm_ggml_backend_metal_buffer_type_private_is_host,
                 },
                 /* .device  = */ lm_ggml_backend_reg_dev_get(lm_ggml_backend_metal_reg(), i),
                 /* .context = */ raw_ctx,
@@ -453,12 +467,14 @@ static lm_ggml_backend_buffer_type_t lm_ggml_backend_metal_buffer_type_mapped(in
             //       https://github.com/ggml-org/llama.cpp/pull/15832#discussion_r2333177099
             lm_ggml_backend_buffer_type buft = {
                 /* .iface = */ {
-                    /* .get_name         = */ lm_ggml_backend_metal_buffer_type_mapped_get_name,
-                    /* .alloc_buffer     = */ lm_ggml_backend_metal_buffer_type_mapped_alloc_buffer,
-                    /* .get_alignment    = */ lm_ggml_backend_metal_buffer_type_mapped_get_alignment,
-                    /* .get_max_size     = */ lm_ggml_backend_metal_buffer_type_mapped_get_max_size,
-                    /* .get_alloc_size   = */ lm_ggml_backend_metal_buffer_type_mapped_get_alloc_size,
-                    /* .is_host          = */ lm_ggml_backend_metal_buffer_type_mapped_is_host,
+                    /* .get_name            = */ lm_ggml_backend_metal_buffer_type_mapped_get_name,
+                    /* .alloc_buffer        = */ lm_ggml_backend_metal_buffer_type_mapped_alloc_buffer,
+                    /* .alloc_buffer_n      = */ NULL,
+                    /* .get_alignment       = */ lm_ggml_backend_metal_buffer_type_mapped_get_alignment,
+                    /* .get_max_size        = */ lm_ggml_backend_metal_buffer_type_mapped_get_max_size,
+                    /* .get_alloc_size      = */ lm_ggml_backend_metal_buffer_type_mapped_get_alloc_size,
+                    /* .get_alloc_size_n    = */ NULL,
+                    /* .is_host             = */ lm_ggml_backend_metal_buffer_type_mapped_is_host,
                 },
                 /* .device  = */ lm_ggml_backend_reg_dev_get(lm_ggml_backend_metal_reg(), i),
                 /* .context = */ raw_ctx,
@@ -551,7 +567,13 @@ static void lm_ggml_backend_metal_event_wait(lm_ggml_backend_t backend, lm_ggml_
     lm_ggml_metal_event_wait(ctx, ev);
 }
 
-static void lm_ggml_backend_metal_graph_optimize(lm_ggml_backend_t backend, lm_ggml_cgraph * cgraph) {
+static void lm_ggml_backend_metal_graph_optimize(lm_ggml_backend_t backend, lm_ggml_cgraph * cgraph, lm_ggml_backend_graph_optimize_params * params) {
+    LM_GGML_ASSERT(params && params->add_alloc_dep);
+
+    // keep the MoE weighted-reduction inputs alive until the fused output so the
+    // allocator cannot reuse them while the fused kernel is still reading them
+    lm_ggml_metal_fusion_add_alloc_deps(params->user_data, params->add_alloc_dep, cgraph);
+
     lm_ggml_metal_t ctx = (lm_ggml_metal_t)backend->context;
 
     lm_ggml_metal_graph_optimize(ctx, cgraph);
@@ -869,9 +891,95 @@ static lm_ggml_backend_feature * lm_ggml_backend_metal_get_features(lm_ggml_back
     LM_GGML_UNUSED(reg);
 }
 
+// test/tune-only override for the FA vec (Q, NE) selection, reached via proc_address.
+static void lm_ggml_backend_metal_tuning_set_fa_vec_override(int Q, int NE) {
+    lm_ggml_metal_tuning::fa_vec_set_override({ (int8_t) Q, (int8_t) NE });
+}
+
+static void lm_ggml_backend_metal_tuning_clear_fa_vec_override(void) {
+    lm_ggml_metal_tuning::fa_vec_clear_override();
+}
+
+static int lm_ggml_backend_metal_tuning_fa_vec_ne11_bucket(int64_t ne11) {
+    return lm_ggml_metal_tuning::fa_vec_ne11_bucket(ne11);
+}
+
+static int lm_ggml_backend_metal_tuning_fa_vec_ne01_bucket(int64_t ne01) {
+    return lm_ggml_metal_tuning::fa_vec_ne01_bucket(ne01);
+}
+
+static int lm_ggml_backend_metal_tuning_fa_vec_baseline_ne(int dk, int dv) {
+    return lm_ggml_metal_tuning::fa_vec_baseline_ne(dk, dv);
+}
+
+static const char * lm_ggml_backend_metal_tuning_device_token(lm_ggml_backend_dev_t dev) {
+    lm_ggml_metal_device_t ctx_dev = (lm_ggml_metal_device_t)dev->context;
+
+    return lm_ggml_metal_device_id_token(lm_ggml_metal_device_get_props(ctx_dev)->device_id);
+}
+
+// generic fusion debugging API (ad-hoc proc-address mechanism): the test resolves the device
+// fusion context once and passes that opaque handle to the rest of the functions
+typedef void * lm_ggml_backend_fusion_t;
+
+static lm_ggml_backend_fusion_t lm_ggml_backend_metal_fusion_get(lm_ggml_backend_dev_t dev) {
+    return lm_ggml_metal_device_get_fusion_info((lm_ggml_metal_device_t)dev->context);
+}
+
+static void lm_ggml_backend_metal_fusion_stats_init(lm_ggml_backend_fusion_t finfo) {
+    lm_ggml_metal_fusion_info_stats_init((struct lm_ggml_metal_fusion_info *) finfo);
+}
+
+static void lm_ggml_backend_metal_fusion_stats_reset(lm_ggml_backend_fusion_t finfo) {
+    lm_ggml_metal_fusion_info_stats_reset((struct lm_ggml_metal_fusion_info *) finfo);
+}
+
+static int lm_ggml_backend_metal_fusion_stats_get(lm_ggml_backend_fusion_t finfo, const char ** labels, uint64_t * counts, int n) {
+    return lm_ggml_metal_fusion_info_stats_get((struct lm_ggml_metal_fusion_info *) finfo, labels, counts, n);
+}
+
+static void lm_ggml_backend_metal_fusion_set_enabled(lm_ggml_backend_fusion_t finfo, bool enabled) {
+    lm_ggml_metal_fusion_info_set_enabled((struct lm_ggml_metal_fusion_info *) finfo, enabled);
+}
+
 static void * lm_ggml_backend_metal_get_proc_address(lm_ggml_backend_reg_t reg, const char * name) {
     if (strcmp(name, "lm_ggml_backend_get_features") == 0) {
         return (void *)lm_ggml_backend_metal_get_features;
+    }
+    if (strcmp(name, "lm_ggml_backend_metal_tuning_set_fa_vec_override") == 0) {
+        return (void *)lm_ggml_backend_metal_tuning_set_fa_vec_override;
+    }
+    if (strcmp(name, "lm_ggml_backend_metal_tuning_clear_fa_vec_override") == 0) {
+        return (void *)lm_ggml_backend_metal_tuning_clear_fa_vec_override;
+    }
+    if (strcmp(name, "lm_ggml_backend_metal_tuning_fa_vec_ne11_bucket") == 0) {
+        return (void *)lm_ggml_backend_metal_tuning_fa_vec_ne11_bucket;
+    }
+    if (strcmp(name, "lm_ggml_backend_metal_tuning_fa_vec_ne01_bucket") == 0) {
+        return (void *)lm_ggml_backend_metal_tuning_fa_vec_ne01_bucket;
+    }
+    if (strcmp(name, "lm_ggml_backend_metal_tuning_fa_vec_baseline_ne") == 0) {
+        return (void *)lm_ggml_backend_metal_tuning_fa_vec_baseline_ne;
+    }
+    if (strcmp(name, "lm_ggml_backend_metal_tuning_device_token") == 0) {
+        return (void *)lm_ggml_backend_metal_tuning_device_token;
+    }
+    // generic fusion debugging API (ad-hoc proc-address mechanism, not part of the official
+    // ggml backend interface yet; a backend that adopts it exports these exact names)
+    if (strcmp(name, "lm_ggml_backend_fusion_get") == 0) {
+        return (void *)lm_ggml_backend_metal_fusion_get;
+    }
+    if (strcmp(name, "lm_ggml_backend_fusion_stats_init") == 0) {
+        return (void *)lm_ggml_backend_metal_fusion_stats_init;
+    }
+    if (strcmp(name, "lm_ggml_backend_fusion_stats_reset") == 0) {
+        return (void *)lm_ggml_backend_metal_fusion_stats_reset;
+    }
+    if (strcmp(name, "lm_ggml_backend_fusion_stats_get") == 0) {
+        return (void *)lm_ggml_backend_metal_fusion_stats_get;
+    }
+    if (strcmp(name, "lm_ggml_backend_fusion_set_enabled") == 0) {
+        return (void *)lm_ggml_backend_metal_fusion_set_enabled;
     }
 
     return NULL;
@@ -890,7 +998,7 @@ static lm_ggml_backend_dev_t lm_ggml_backend_metal_device_init(lm_ggml_backend_r
     return new lm_ggml_backend_device {
         /* .iface   = */ lm_ggml_backend_metal_device_i,
         /* .reg     = */ reg,
-        /* .context = */ lm_ggml_metal_device_get(device),
+        /* .context = */ lm_ggml_metal_device_get(device, g_devices),
     };
 }
 

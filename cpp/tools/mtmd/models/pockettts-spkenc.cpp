@@ -53,9 +53,7 @@ lm_ggml_cgraph * clip_graph_pockettts_spkenc::build() {
     lm_ggml_set_input(inp_pos);
 
     // the mimi transformer is causal with a sliding window, see _build_attention_mask()
-    lm_ggml_tensor * kq_mask = lm_ggml_new_tensor_2d(ctx0, LM_GGML_TYPE_F32, cur->ne[1], cur->ne[1]);
-    lm_ggml_set_name(kq_mask, "kq_mask");
-    lm_ggml_set_input(kq_mask);
+    lm_ggml_tensor * kq_mask = build_inp_attn_mask(cur->ne[1], cur->ne[1]);
 
     for (int il = 0; il < n_layer; il++) {
         cur = tfm_layer_forward(cur, model.layers[il], inp_pos, kq_mask, il);

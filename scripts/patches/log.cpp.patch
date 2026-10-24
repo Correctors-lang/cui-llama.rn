@@ -1,6 +1,6 @@
---- common/log.cpp.orig	2026-06-23 19:58:57
-+++ common/log.cpp	2026-06-23 19:59:58
-@@ -13,6 +13,10 @@
+--- common/log.cpp.orig
++++ common/log.cpp
+@@ -14,6 +14,10 @@
  #include <vector>
  #include <algorithm>
  
@@ -8,14 +8,13 @@
 +#include <android/log.h>
 +#endif
 +
- #if defined(_WIN32)
- #    define WIN32_LEAN_AND_MEAN
- #    ifndef NOMINMAX
-@@ -76,8 +80,37 @@
-     bool prefix       { false };
+ int common_log_verbosity_thold = LOG_DEFAULT_LLAMA;
+ 
+ int common_log_get_verbosity_thold(void) {
+@@ -88,7 +92,36 @@
  
      common_log_entry(size_t size = 256) : msg(size) { }
-+
+ 
 +    #if defined(__ANDROID__) && defined(RNLLAMA_ANDROID_ENABLE_LOGGING)
 +    void android_print() const {
 +        int android_log_priority;
@@ -41,7 +40,7 @@
 +        __android_log_print(android_log_priority, tag, "%s", msg.data());
 +    }
 +    #endif
- 
++
      void print(FILE * file = nullptr) const {
 +        #if defined(__ANDROID__) && defined(RNLLAMA_ANDROID_ENABLE_LOGGING)
 +        android_print();
@@ -49,8 +48,8 @@
          FILE * fcur = file;
          if (!fcur) {
              // stderr displays DBG messages only when their verbosity level is not higher than the threshold
-@@ -122,6 +155,7 @@
-         }
+@@ -155,6 +188,7 @@
+         fprintf(fcur, "%.*s%s%s", (int) end, msg.data(), reset ? g_col[COMMON_LOG_COL_DEFAULT] : "", msg.data() + end);
  
          fflush(fcur);
 +        #endif
