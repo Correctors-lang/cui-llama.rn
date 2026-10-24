@@ -173,6 +173,11 @@ cp ./$LLAMA_DIR/ggml/src/ggml-cpu/unary-ops.h ./cpp/ggml-cpu/unary-ops.h
 cp ./$LLAMA_DIR/ggml/src/ggml-cpu/unary-ops.cpp ./cpp/ggml-cpu/unary-ops.cpp
 cp ./$LLAMA_DIR/ggml/src/ggml-cpu/binary-ops.h ./cpp/ggml-cpu/binary-ops.h
 cp ./$LLAMA_DIR/ggml/src/ggml-cpu/binary-ops.cpp ./cpp/ggml-cpu/binary-ops.cpp
+# Le noyau « tiled » est arrivé en amont après l'instantané d'août, et
+# ggml-cpu.c l'inclut.
+mkdir -p ./cpp/ggml-cpu/tiled
+cp -r ./$LLAMA_DIR/ggml/src/ggml-cpu/tiled/* ./cpp/ggml-cpu/tiled/
+
 cp ./$LLAMA_DIR/ggml/src/ggml-cpu/vec.h ./cpp/ggml-cpu/vec.h
 cp ./$LLAMA_DIR/ggml/src/ggml-cpu/vec.cpp ./cpp/ggml-cpu/vec.cpp
 cp ./$LLAMA_DIR/ggml/src/ggml-cpu/simd-mappings.h ./cpp/ggml-cpu/simd-mappings.h
@@ -186,6 +191,8 @@ cp -r ./$LLAMA_DIR/ggml/src/ggml-cpu/arch/arm ./cpp/ggml-cpu/arch/
 cp -r ./$LLAMA_DIR/ggml/src/ggml-cpu/arch/x86 ./cpp/ggml-cpu/arch/
 
 cp ./$LLAMA_DIR/ggml/src/ggml.c ./cpp/ggml.c
+cp ./$LLAMA_DIR/ggml/src/ggml.cpp ./cpp/ggml.cpp
+cp ./$LLAMA_DIR/ggml/src/ggml-feats.h ./cpp/ggml-feats.h
 cp ./$LLAMA_DIR/ggml/src/ggml-impl.h ./cpp/ggml-impl.h
 cp ./$LLAMA_DIR/ggml/src/ggml-alloc.c ./cpp/ggml-alloc.c
 cp ./$LLAMA_DIR/ggml/src/ggml-backend.cpp ./cpp/ggml-backend.cpp
@@ -231,6 +238,18 @@ cp ./$LLAMA_DIR/src/llama-model.cpp ./cpp/llama-model.cpp
 cp ./$LLAMA_DIR/src/llama-kv-cells.h ./cpp/llama-kv-cells.h
 cp ./$LLAMA_DIR/src/llama-kv-cache.h ./cpp/llama-kv-cache.h
 cp ./$LLAMA_DIR/src/llama-kv-cache.cpp ./cpp/llama-kv-cache.cpp
+# Fichiers apparus en amont depuis l'instantané d'août : la liste de copie ne
+# les connaissait pas, et la compilation s'arrêtait dessus (montée vers
+# v0.7.0, 2026-10-24).
+cp ./$LLAMA_DIR/src/llama-kv-cache-dsa-iswa.h ./cpp/llama-kv-cache-dsa-iswa.h
+cp ./$LLAMA_DIR/src/llama-kv-cache-dsa-iswa.cpp ./cpp/llama-kv-cache-dsa-iswa.cpp
+cp ./$LLAMA_DIR/src/llama-memory-hybrid-idx.h ./cpp/llama-memory-hybrid-idx.h
+cp ./$LLAMA_DIR/src/llama-memory-hybrid-idx.cpp ./cpp/llama-memory-hybrid-idx.cpp
+cp ./$LLAMA_DIR/src/llama-moe-cache.h ./cpp/llama-moe-cache.h
+cp ./$LLAMA_DIR/src/llama-moe-cache.cpp ./cpp/llama-moe-cache.cpp
+cp ./$LLAMA_DIR/src/llama-quant.h ./cpp/llama-quant.h
+cp ./$LLAMA_DIR/src/llama-quant.cpp ./cpp/llama-quant.cpp
+
 cp ./$LLAMA_DIR/src/llama-kv-cache-dsa.h ./cpp/llama-kv-cache-dsa.h
 cp ./$LLAMA_DIR/src/llama-kv-cache-dsa.cpp ./cpp/llama-kv-cache-dsa.cpp
 cp ./$LLAMA_DIR/src/llama-kv-cache-msa.h ./cpp/llama-kv-cache-msa.h
@@ -306,6 +325,21 @@ cp ./$LLAMA_DIR/common/chat-auto-parser-generator.cpp ./cpp/common/chat-auto-par
 cp ./$LLAMA_DIR/common/chat-diff-analyzer.cpp ./cpp/common/chat-diff-analyzer.cpp
 cp ./$LLAMA_DIR/common/chat-peg-parser.h ./cpp/common/chat-peg-parser.h
 cp ./$LLAMA_DIR/common/chat-peg-parser.cpp ./cpp/common/chat-peg-parser.cpp
+# `peg-parser.h` inclut `json-schema.h` depuis l'amont de septembre, lequel
+# s'appuie sur `json.h` : deux paires que la liste de copie ignorait (montée
+# vers v0.7.0, 2026-10-24). Les autres absents de common/ — arg, console,
+# download, http, preset, subproc — sont du serveur et du CLI, et restent
+# volontairement dehors.
+# `common/parsers/` est né en amont après l'instantané d'août, et
+# `chat-auto-parser-generator.cpp` l'inclut.
+mkdir -p ./cpp/common/parsers
+cp -r ./$LLAMA_DIR/common/parsers/* ./cpp/common/parsers/
+
+cp ./$LLAMA_DIR/common/json.h ./cpp/common/json.h
+cp ./$LLAMA_DIR/common/json.cpp ./cpp/common/json.cpp
+cp ./$LLAMA_DIR/common/json-schema.h ./cpp/common/json-schema.h
+cp ./$LLAMA_DIR/common/json-schema.cpp ./cpp/common/json-schema.cpp
+
 cp ./$LLAMA_DIR/common/peg-parser.h ./cpp/common/peg-parser.h
 cp ./$LLAMA_DIR/common/peg-parser.cpp ./cpp/common/peg-parser.cpp
 cp ./$LLAMA_DIR/common/unicode.h ./cpp/common/unicode.h
@@ -325,6 +359,8 @@ cp -r ./$LLAMA_DIR/tools/mtmd/models ./cpp/tools/mtmd/models
 cp -r ./$LLAMA_DIR/tools/mtmd/debug ./cpp/tools/mtmd/debug
 cp ./$LLAMA_DIR/tools/mtmd/mtmd.h ./cpp/tools/mtmd/mtmd.h
 cp ./$LLAMA_DIR/tools/mtmd/mtmd.cpp ./cpp/tools/mtmd/mtmd.cpp
+# mtmd.cpp a été scindé en amont : son en-tête interne manquait à la liste.
+cp ./$LLAMA_DIR/tools/mtmd/mtmd-internal.h ./cpp/tools/mtmd/mtmd-internal.h
 cp ./$LLAMA_DIR/tools/mtmd/clip.h ./cpp/tools/mtmd/clip.h
 cp ./$LLAMA_DIR/tools/mtmd/clip.cpp ./cpp/tools/mtmd/clip.cpp
 cp ./$LLAMA_DIR/tools/mtmd/clip-impl.h ./cpp/tools/mtmd/clip-impl.h
@@ -348,18 +384,21 @@ mv ./cpp/common/jinja/string.h ./cpp/common/jinja/jinja-string.h
 if [ "$OS" = "Darwin" ]; then
   sed -i '' 's|#include "string.h"|#include "jinja-string.h"|g' ./cpp/common/jinja/value.h
   sed -i '' 's|#include "jinja/string.h"|#include "jinja/jinja-string.h"|g' ./cpp/common/jinja/string.cpp
-  # llama-ext.h lives at cpp/llama-ext.h, not cpp/src/llama-ext.h
-  sed -i '' 's|#include "../src/llama-ext.h"|#include "../llama-ext.h"|g' ./cpp/common/fit.h
-  sed -i '' 's|#include "../src/llama-ext.h"|#include "../llama-ext.h"|g' ./cpp/common/fit.cpp
-  sed -i '' 's|#include "../src/llama-ext.h"|#include "../llama-ext.h"|g' ./cpp/common/speculative.cpp
-  sed -i '' 's|#include "../src/llama-ext.h"|#include "../../llama-ext.h"|g' ./cpp/tools/mtmd/mtmd-helper-gen.cpp
+  # llama-ext.h lives at cpp/llama-ext.h, not cpp/src/llama-ext.h.
+  # Sur TOUS les fichiers, et non plus sur une liste figée : l'amont a mis le
+  # même include dans common.cpp après l'instantané d'août, et la compilation
+  # s'arrêtait dessus (2026-10-24).
+  find ./cpp/common -maxdepth 1 \( -name '*.h' -o -name '*.cpp' \) -print0 \
+    | xargs -0 sed -i '' 's|#include "../src/llama-ext.h"|#include "../llama-ext.h"|g'
+  find ./cpp/tools/mtmd -maxdepth 1 \( -name '*.h' -o -name '*.cpp' \) -print0 \
+    | xargs -0 sed -i '' 's|#include "../src/llama-ext.h"|#include "../../llama-ext.h"|g'
 else
   sed -i 's|#include "string.h"|#include "jinja-string.h"|g' ./cpp/common/jinja/value.h
   sed -i 's|#include "jinja/string.h"|#include "jinja/jinja-string.h"|g' ./cpp/common/jinja/string.cpp
-  sed -i 's|#include "../src/llama-ext.h"|#include "../llama-ext.h"|g' ./cpp/common/fit.h
-  sed -i 's|#include "../src/llama-ext.h"|#include "../llama-ext.h"|g' ./cpp/common/fit.cpp
-  sed -i 's|#include "../src/llama-ext.h"|#include "../llama-ext.h"|g' ./cpp/common/speculative.cpp
-  sed -i 's|#include "../src/llama-ext.h"|#include "../../llama-ext.h"|g' ./cpp/tools/mtmd/mtmd-helper-gen.cpp
+  find ./cpp/common -maxdepth 1 \( -name '*.h' -o -name '*.cpp' \) -print0 \
+    | xargs -0 sed -i 's|#include "../src/llama-ext.h"|#include "../llama-ext.h"|g'
+  find ./cpp/tools/mtmd -maxdepth 1 \( -name '*.h' -o -name '*.cpp' \) -print0 \
+    | xargs -0 sed -i 's|#include "../src/llama-ext.h"|#include "../../llama-ext.h"|g'
 fi
 
 rm -rf ./cpp/nlohmann
@@ -368,6 +407,16 @@ rm -rf ./cpp/tools/mtmd/miniaudio
 rm -rf ./cpp/tools/mtmd/stb
 cp -r ./$LLAMA_DIR/vendor/miniaudio ./cpp/tools/mtmd/miniaudio
 cp -r ./$LLAMA_DIR/vendor/stb ./cpp/tools/mtmd/stb
+
+# `vendor/hash` : mtmd-helper.cpp l'inclut depuis l'amont de septembre. Il
+# est rangé sous `vendor/` en amont, et attendu à côté des sources ici.
+mkdir -p ./cpp/tools/mtmd/hash
+cp ./$LLAMA_DIR/vendor/hash/hash.h ./cpp/tools/mtmd/hash/hash.h
+cp ./$LLAMA_DIR/vendor/hash/hash.cpp ./cpp/tools/mtmd/hash/hash.cpp
+if [ -d ./$LLAMA_DIR/vendor/hash/rotate-bits ]; then
+  mkdir -p ./cpp/tools/mtmd/hash/rotate-bits
+  cp -r ./$LLAMA_DIR/vendor/hash/rotate-bits/* ./cpp/tools/mtmd/hash/rotate-bits/
+fi
 
 # Copy codec.cpp sources into cpp/codec
 rm -rf ./cpp/codec
@@ -409,6 +458,13 @@ files_add_lm_prefix=(
   ./cpp/ggml-cpu/*.cpp
   ./cpp/ggml-cpu/amx/*.h
   ./cpp/ggml-cpu/amx/*.cpp
+  # Le noyau « tiled » (amont, après l'instantané d'août) : sans lui dans
+  # cette liste, ses en-têtes gardaient les noms ggml_ quand tout le reste
+  # passe en lm_ggml_, et ggml-cpu.c appelait des fonctions non déclarées.
+  ./cpp/ggml-cpu/tiled/*.h
+  ./cpp/ggml-cpu/tiled/*.cpp
+  ./cpp/common/parsers/*.h
+  ./cpp/common/parsers/*.cpp
   ./cpp/ggml-cpu/arch/arm/*.c
   ./cpp/ggml-cpu/arch/arm/*.cpp
   ./cpp/ggml-cpu/arch/x86/*.c
@@ -573,6 +629,30 @@ cd example && npm install && cd ..
 for patch_file in ./scripts/patches/*.patch; do
   patch -p0 -d ./cpp < "$patch_file"
 done
+
+# L'en-tête de version que l'amont fabrique par CMake : l'arbre aplati n'a pas
+# de CMake, et ggml.c l'inclut. Sans lui, la compilation s'arrête à la
+# première ligne (vu le 2026-10-24, à la montée vers v0.7.0).
+GGML_VERSION_TAG=$(git -C "$LLAMA_DIR" describe --tags --exact-match 2>/dev/null || git -C "$LLAMA_DIR" describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+GGML_VERSION_COMMIT=$(git -C "$LLAMA_DIR" rev-parse --short=7 HEAD)
+cat > ./cpp/ggml-version.h <<EOF
+#pragma once
+
+// Généré par scripts/bootstrap.sh depuis le sous-module llama.cpp.
+#define LM_GGML_VERSION "${GGML_VERSION_TAG#v}"
+#define LM_GGML_COMMIT  "$GGML_VERSION_COMMIT"
+EOF
+
+# Même chose pour llama.cpp lui-même : llama.cpp l'inclut dès sa quatrième
+# ligne. Le préfixe LM_ ne s'applique PAS ici — la passe de renommage ne
+# touche pas aux symboles LLAMA_.
+cat > ./cpp/llama-version.h <<EOF
+#pragma once
+
+// Généré par scripts/bootstrap.sh depuis le sous-module llama.cpp.
+#define LLAMA_VERSION "${GGML_VERSION_TAG#v}"
+#define LLAMA_COMMIT  "$GGML_VERSION_COMMIT"
+EOF
 
 rm -rf ./cpp/*.orig
 rm -rf ./cpp/**/*.orig

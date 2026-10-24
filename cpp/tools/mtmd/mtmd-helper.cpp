@@ -165,7 +165,11 @@ static int32_t mtmd_helper_decode_image_chunk_impl(
         batch_embd.set_position_normal(n_past, seq_id);
     }
     if (logits_last) {
-        batch_embd.batch.logits[n_tokens - 1] = true;
+        // L'API a changé en amont : le lot n'expose plus son tableau
+        // `logits`, il faut passer par `llama_batch_ext_set_output_logits`,
+        // comme le fait déjà le chemin texte plus bas (montée vers v0.7.0,
+        // 2026-10-24).
+        llama_batch_ext_set_output_logits(batch_embd.batch.get(), n_tokens - 1, true);
     }
 
     const bool use_non_causal = mtmd_decode_use_non_causal(ctx, chunk);

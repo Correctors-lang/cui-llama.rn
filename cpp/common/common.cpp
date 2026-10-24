@@ -5,7 +5,7 @@
 #include "build-info.h"
 #include "common.h"
 
-#include "../src/llama-ext.h"
+#include "../llama-ext.h"
 
 #include "fit.h"
 #include "log.h"
