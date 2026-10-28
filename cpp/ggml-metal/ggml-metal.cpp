@@ -226,7 +226,6 @@ static size_t lm_ggml_backend_metal_buffer_type_get_alloc_size(lm_ggml_backend_b
             {
                 res += lm_ggml_metal_op_mul_mat_id_extra_tpe(tensor);
                 res += lm_ggml_metal_op_mul_mat_id_extra_ids(tensor);
-                res += lm_ggml_metal_op_mul_mat_id_extra_amax(tensor);
             } break;
         case LM_GGML_OP_FLASH_ATTN_EXT:
             {
@@ -244,6 +243,10 @@ static size_t lm_ggml_backend_metal_buffer_type_get_alloc_size(lm_ggml_backend_b
         case LM_GGML_OP_TOP_K:
             {
                 res = 2*sizeof(int32_t)*lm_ggml_nelements(tensor->src[0]);
+            } break;
+        case LM_GGML_OP_ARGMAX:
+            {
+                res += lm_ggml_metal_op_argmax_extra(tensor);
             } break;
         default:
             break;

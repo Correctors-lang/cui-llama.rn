@@ -140,11 +140,12 @@ struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm            (lm_ggml_metal_library_t lib, const struct lm_ggml_tensor * op);
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mv            (lm_ggml_metal_library_t lib, const struct lm_ggml_tensor * op);
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_map0    (lm_ggml_metal_library_t lib, int ne02, int ne20);
-struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_amax(lm_ggml_metal_library_t lib);
-struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_amax_part(lm_ggml_metal_library_t lib);
+struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_zero    (lm_ggml_metal_library_t lib);
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id         (lm_ggml_metal_library_t lib, const struct lm_ggml_tensor * op);
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mv_id         (lm_ggml_metal_library_t lib, const struct lm_ggml_tensor * op);
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_argmax            (lm_ggml_metal_library_t lib, const struct lm_ggml_tensor * op);
+struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_argmax_part       (lm_ggml_metal_library_t lib);
+struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_argmax_final      (lm_ggml_metal_library_t lib);
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_argsort           (lm_ggml_metal_library_t lib, const struct lm_ggml_tensor * op);
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_argsort_merge     (lm_ggml_metal_library_t lib, const struct lm_ggml_tensor * op);
 struct lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_fwht              (lm_ggml_metal_library_t lib, int n, enum lm_ggml_type tsrc);

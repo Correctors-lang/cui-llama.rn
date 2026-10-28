@@ -108,6 +108,7 @@ void lm_ggml_compute_forward_lightning_indexer(const struct lm_ggml_compute_para
 void lm_ggml_compute_forward_dsv4_hc_comb(const struct lm_ggml_compute_params * params, struct lm_ggml_tensor * dst);
 void lm_ggml_compute_forward_dsv4_hc_pre(const struct lm_ggml_compute_params * params, struct lm_ggml_tensor * dst);
 void lm_ggml_compute_forward_dsv4_hc_post(const struct lm_ggml_compute_params * params, struct lm_ggml_tensor * dst);
+void lm_ggml_compute_forward_top_k_mask(const struct lm_ggml_compute_params * params, struct lm_ggml_tensor * dst);
 void lm_ggml_compute_forward_map_custom1(const struct lm_ggml_compute_params * params, struct lm_ggml_tensor * dst);
 void lm_ggml_compute_forward_map_custom2(const struct lm_ggml_compute_params * params, struct lm_ggml_tensor * dst);
 void lm_ggml_compute_forward_map_custom3(const struct lm_ggml_compute_params * params, struct lm_ggml_tensor * dst);

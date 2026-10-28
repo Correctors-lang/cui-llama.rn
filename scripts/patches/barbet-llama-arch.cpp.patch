@@ -1,6 +1,6 @@
 --- llama-arch.cpp.orig
 +++ llama-arch.cpp
-@@ -160,6 +160,7 @@
+@@ -164,6 +164,7 @@
      { LLM_ARCH_GLM5_NEXT,        "glm5-next"        },
      { LLM_ARCH_TALKIE,           "talkie"           },
      { LLM_ARCH_MELLUM,           "mellum"           },
@@ -8,10 +8,10 @@
      { LLM_ARCH_NANBEIGE,         "nanbeige"         },
      { LLM_ARCH_QWEN3TTS,         "qwen3tts"         },
      { LLM_ARCH_POCKETTTS,        "pockettts"        },
-@@ -1211,6 +1212,7 @@
-         case LLM_ARCH_QWEN35MOE:
+@@ -1254,6 +1255,7 @@
          case LLM_ARCH_QWEN4EXP:
          case LLM_ARCH_DEEPSEEK4:
+         case LLM_ARCH_DEEPSEEK41:
 +        case LLM_ARCH_BARBET:
          case LLM_ARCH_MINIMAX_01:
              return true;

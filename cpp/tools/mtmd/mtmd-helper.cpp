@@ -165,10 +165,10 @@ static int32_t mtmd_helper_decode_image_chunk_impl(
         batch_embd.set_position_normal(n_past, seq_id);
     }
     if (logits_last) {
-        // L'API a changé en amont : le lot n'expose plus son tableau
-        // `logits`, il faut passer par `llama_batch_ext_set_output_logits`,
-        // comme le fait déjà le chemin texte plus bas (montée vers v0.7.0,
-        // 2026-10-24).
+        // L'amont est passé de `llama_batch` à `llama_batch_ext` (octobre
+        // 2026) : les drapeaux de sortie ne sont plus un tableau accessible,
+        // ils se posent par appel. Même écriture que l'amont fait pour les
+        // lots de texte.
         llama_batch_ext_set_output_logits(batch_embd.batch.get(), n_tokens - 1, true);
     }
 

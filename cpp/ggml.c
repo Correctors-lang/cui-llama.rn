@@ -554,9 +554,6 @@ static BOOL CALLBACK lm_ggml_time_init_once(PINIT_ONCE once, PVOID param, PVOID 
     QueryPerformanceFrequency(&t);
     timer_freq = t.QuadPart;
 
-    // The multiplication by 1000 or 1000000 below can cause an overflow if timer_freq
-    // and the uptime is high enough.
-    // We subtract the program start time to reduce the likelihood of that happening.
     QueryPerformanceCounter(&t);
     timer_start = t.QuadPart;
 
@@ -569,12 +566,12 @@ void lm_ggml_time_init(void) {
 int64_t lm_ggml_time_ms(void) {
     LARGE_INTEGER t;
     QueryPerformanceCounter(&t);
-    return ((t.QuadPart-timer_start) * 1000) / timer_freq;
+    return (int64_t) (((double) (t.QuadPart - timer_start) / timer_freq) * 1000);
 }
 int64_t lm_ggml_time_us(void) {
     LARGE_INTEGER t;
     QueryPerformanceCounter(&t);
-    return ((t.QuadPart-timer_start) * 1000000) / timer_freq;
+    return (int64_t) (((double) (t.QuadPart - timer_start) / timer_freq) * 1000000);
 }
 #else
 void lm_ggml_time_init(void) {}
@@ -643,6 +640,26 @@ FILE * lm_ggml_fopen(const char * fname, const char * mode) {
 
     return file;
 #else
+    // Un « chemin » sans barre oblique est un DESCRIPTEUR DE FICHIER, passé
+    // sous forme décimale. C'est ainsi que l'application Android ouvre un
+    // modèle : elle n'a pas de chemin à donner (le fichier vient d'un
+    // `ContentResolver`), seulement un descripteur, et `jni.cpp` l'écrit en
+    // toutes lettres dans `params.model.path`.
+    //
+    // Ce bloc vivait en dur dans l'arbre aplati, sans patch pour le porter :
+    // la régénération de `cpp/` l'a donc emporté, et le chargement échouait
+    // avec « failed to open GGUF file '204' (No such file or directory) »
+    // (montée vers v0.7.0, mesuré sur le téléphone le 2026-10-24).
+    if (strchr(fname, '/') == NULL) {
+        char *endptr;
+        long num = strtol(fname, &endptr, 10);
+        if (endptr != fname && *endptr == '\0') {
+            FILE *file = fdopen(dup(num), mode);
+            if (file != NULL) {
+                return file;
+            }
+        }
+    }
     return fopen(fname, mode);
 #endif
 
@@ -1103,6 +1120,7 @@ static const char * LM_GGML_OP_NAME[LM_GGML_OP_COUNT] = {
     "DSV4_HC_COMB",
     "DSV4_HC_PRE",
     "DSV4_HC_POST",
+    "TOP_K_MASK",
 
     "UNARY",
 
@@ -1120,7 +1138,7 @@ static const char * LM_GGML_OP_NAME[LM_GGML_OP_COUNT] = {
     "GLU",
 };
 
-static_assert(LM_GGML_OP_COUNT == 101, "LM_GGML_OP_COUNT != 101");
+static_assert(LM_GGML_OP_COUNT == 102, "LM_GGML_OP_COUNT != 102");
 
 static const char * LM_GGML_OP_SYMBOL[LM_GGML_OP_COUNT] = {
     "none",
@@ -1218,6 +1236,7 @@ static const char * LM_GGML_OP_SYMBOL[LM_GGML_OP_COUNT] = {
     "dsv4_hc_comb(mixes, scale, base)",
     "dsv4_hc_pre(x, weights)",
     "dsv4_hc_post(x, residual, post, comb)",
+    "top_k_mask(mask, top_k, score, blocks, extra)",
 
     "unary(x)",
 
@@ -1235,7 +1254,7 @@ static const char * LM_GGML_OP_SYMBOL[LM_GGML_OP_COUNT] = {
     "glu(x)",
 };
 
-static_assert(LM_GGML_OP_COUNT == 101, "LM_GGML_OP_COUNT != 101");
+static_assert(LM_GGML_OP_COUNT == 102, "LM_GGML_OP_COUNT != 102");
 
 static_assert(LM_GGML_OP_POOL_COUNT == 2, "LM_GGML_OP_POOL_COUNT != 2");
 
@@ -3357,6 +3376,36 @@ bool lm_ggml_prec_set_src(
     return true;
 }
 
+enum lm_ggml_prec lm_ggml_prec_get_acc(
+        const struct lm_ggml_tensor * a) {
+    switch (a->op) {
+        case LM_GGML_OP_MUL_MAT:
+        case LM_GGML_OP_MUL_MAT_ID:
+            return (enum lm_ggml_prec) lm_ggml_get_op_params_i32(a, 0);
+        case LM_GGML_OP_FLASH_ATTN_EXT:
+            return (enum lm_ggml_prec) lm_ggml_get_op_params_i32(a, 3);
+        default:
+            return LM_GGML_PREC_UNDEFINED;
+    };
+}
+
+enum lm_ggml_prec lm_ggml_prec_get_src(
+        const struct lm_ggml_tensor * a,
+        int                        idx) {
+    LM_GGML_ASSERT(idx >= 0 && idx < LM_GGML_MAX_SRC);
+
+    switch (a->op) {
+        case LM_GGML_OP_MUL_MAT:
+        case LM_GGML_OP_MUL_MAT_ID:
+            if (idx != 1) {
+                return LM_GGML_PREC_UNDEFINED;
+            }
+            return (enum lm_ggml_prec) lm_ggml_get_op_params_i32(a, 2 + idx);
+        default:
+            return LM_GGML_PREC_UNDEFINED;
+    };
+}
+
 // lm_ggml_mul_mat
 
 static inline bool lm_ggml_can_mul_mat(const struct lm_ggml_tensor * t0, const struct lm_ggml_tensor * t1) {
@@ -3417,6 +3466,8 @@ void lm_ggml_mul_mat_set_hint(
     in b, n_expert_used can be broadcasted to match the n_expert_used of ids
 
     c ~= as[:,:,i] @ b[:,i%r,t], i = ids[e,t] for all e,t in ids
+
+    an id of -1 skips the slot: no matrix is selected, c[:,e,t] is set to zero
 */
 struct lm_ggml_tensor * lm_ggml_mul_mat_id(
         struct lm_ggml_context * ctx,
@@ -6634,6 +6685,48 @@ struct lm_ggml_tensor * lm_ggml_dsv4_hc_post(
     result->src[1] = residual;
     result->src[2] = post;
     result->src[3] = comb;
+
+    return result;
+}
+
+// lm_ggml_top_k_mask
+
+struct lm_ggml_tensor * lm_ggml_top_k_mask(
+        struct lm_ggml_context * ctx,
+        struct lm_ggml_tensor  * mask,
+        struct lm_ggml_tensor  * top_k,
+        struct lm_ggml_tensor  * score,
+        struct lm_ggml_tensor  * blocks,
+        struct lm_ggml_tensor  * extra) {
+    LM_GGML_ASSERT(mask->type == LM_GGML_TYPE_F16 || mask->type == LM_GGML_TYPE_F32);
+    LM_GGML_ASSERT(mask->nb[0] == lm_ggml_type_size(mask->type));
+    LM_GGML_ASSERT(top_k->type == LM_GGML_TYPE_I32);
+    LM_GGML_ASSERT(top_k->ne[1] % mask->ne[1] == 0 && top_k->ne[2] % mask->ne[2] == 0 && top_k->ne[3] % mask->ne[3] == 0);
+
+    if (score) {
+        LM_GGML_ASSERT(score->type == LM_GGML_TYPE_F32);
+        LM_GGML_ASSERT(score->ne[1] == top_k->ne[1] && score->ne[2] == top_k->ne[2] && score->ne[3] == top_k->ne[3]);
+    }
+
+    if (blocks) {
+        LM_GGML_ASSERT(blocks->type == LM_GGML_TYPE_I32);
+        LM_GGML_ASSERT(blocks->ne[2] == 1 && blocks->ne[3] == 1);
+        LM_GGML_ASSERT(!score || blocks->ne[1] == score->ne[0]);
+    }
+
+    if (extra) {
+        LM_GGML_ASSERT(extra->type == LM_GGML_TYPE_I32);
+        LM_GGML_ASSERT(extra->ne[1] == top_k->ne[1] && extra->ne[2] == top_k->ne[2] && extra->ne[3] == top_k->ne[3]);
+    }
+
+    struct lm_ggml_tensor * result = lm_ggml_new_tensor_4d(ctx, mask->type, mask->ne[0], top_k->ne[1], top_k->ne[2], top_k->ne[3]);
+
+    result->op     = LM_GGML_OP_TOP_K_MASK;
+    result->src[0] = mask;
+    result->src[1] = top_k;
+    result->src[2] = score;
+    result->src[3] = blocks;
+    result->src[4] = extra;
 
     return result;
 }

@@ -539,8 +539,14 @@ enum lm_ggml_status lm_ggml_metal_graph_compute(lm_ggml_metal_t ctx, struct lm_g
                 descriptor.outputURL = [NSURL fileURLWithPath:path];
 
                 NSError * error = nil;
-                if (![[MTLCaptureManager sharedCaptureManager] startCaptureWithDescriptor:descriptor error:&error]) {
+                const bool ok = [[MTLCaptureManager sharedCaptureManager] startCaptureWithDescriptor:descriptor error:&error];
+
+                [descriptor release];
+
+                if (!ok) {
                     LM_GGML_LOG_ERROR("%s: error: unable to start capture '%s' (did you set METAL_CAPTURE_ENABLED=1 ?)\n", __func__, [[error localizedDescription] UTF8String]);
+                    [ctx->capture_scope release];
+                    ctx->capture_scope = nil;
                 } else {
                     [ctx->capture_scope beginScope];
                     ctx->capture_started = true;
@@ -600,6 +606,8 @@ enum lm_ggml_status lm_ggml_metal_graph_compute(lm_ggml_metal_t ctx, struct lm_g
         // enter here only when capturing in order to wait for all computation to finish
         // otherwise, we leave the graph to compute asynchronously
         if (use_capture && ctx->capture_started) {
+            enum lm_ggml_status res = LM_GGML_STATUS_SUCCESS;
+
             // wait for completion and check status of each command buffer
             // needed to detect if the device ran out-of-memory for example (#1881)
             {
@@ -613,11 +621,11 @@ enum lm_ggml_status lm_ggml_metal_graph_compute(lm_ggml_metal_t ctx, struct lm_g
                         LM_GGML_LOG_INFO("error: %s\n", [[cmd_buf error].localizedDescription UTF8String]);
                     }
 
-                    return LM_GGML_STATUS_FAILED;
+                    res = LM_GGML_STATUS_FAILED;
                 }
             }
 
-            for (int i = 0; i < n_cb; ++i) {
+            for (int i = 0; i < n_cb && res == LM_GGML_STATUS_SUCCESS; ++i) {
                 id<MTLCommandBuffer> cmd_buf = ctx->cmd_bufs[i].obj;
                 [cmd_buf waitUntilCompleted];
 
@@ -627,8 +635,8 @@ enum lm_ggml_status lm_ggml_metal_graph_compute(lm_ggml_metal_t ctx, struct lm_g
                     if (status == MTLCommandBufferStatusError) {
                         LM_GGML_LOG_INFO("error: %s\n", [[cmd_buf error].localizedDescription UTF8String]);
                     }
-
-                    return LM_GGML_STATUS_FAILED;
+                    res = LM_GGML_STATUS_FAILED;
+                    break;
                 }
 
                 id<MTLCommandBuffer> next_buffer = (i + 1 < n_cb ? ctx->cmd_bufs[i + 1].obj : nil);
@@ -643,7 +651,8 @@ enum lm_ggml_status lm_ggml_metal_graph_compute(lm_ggml_metal_t ctx, struct lm_g
 
                 if (ctx->abort_callback && ctx->abort_callback(ctx->abort_callback_data)) {
                     LM_GGML_LOG_INFO("%s: command buffer %d aborted", __func__, i);
-                    return LM_GGML_STATUS_ABORTED;
+                    res = LM_GGML_STATUS_ABORTED;
+                    break;
                 }
 
                 [next_buffer commit];
@@ -652,7 +661,14 @@ enum lm_ggml_status lm_ggml_metal_graph_compute(lm_ggml_metal_t ctx, struct lm_g
             [ctx->capture_scope endScope];
             [[MTLCaptureManager sharedCaptureManager] stopCapture];
 
+            [ctx->capture_scope release];
+            ctx->capture_scope = nil;
+
             ctx->capture_started = false;
+
+            if (res != LM_GGML_STATUS_SUCCESS) {
+                return res;
+            }
         }
     }
 

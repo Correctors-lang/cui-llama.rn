@@ -302,6 +302,14 @@ cp ./$LLAMA_DIR/common/log.h ./cpp/common/log.h
 cp ./$LLAMA_DIR/common/log.cpp ./cpp/common/log.cpp
 cp ./$LLAMA_DIR/common/common.h ./cpp/common/common.h
 cp ./$LLAMA_DIR/common/common.cpp ./cpp/common/common.cpp
+# `common/unicode.{h,cpp}` : paire NOUVELLE, apparue en amont après
+# l'instantané d'octobre, et distincte de l'`unicode.h` du tokeniseur à la
+# racine. Sans elle, `common/jinja/lexer.cpp` ne trouve pas
+# `common_unicode_cpt_to_utf8` et la compilation s'arrête (vu le 2026-10-25,
+# montée vers b11880). La liste ci-dessous est à compléter à chaque montée :
+# ce qui n'y figure pas n'existe tout simplement pas pour nous.
+cp ./$LLAMA_DIR/common/unicode.h ./cpp/common/unicode.h
+cp ./$LLAMA_DIR/common/unicode.cpp ./cpp/common/unicode.cpp
 cp ./$LLAMA_DIR/common/sampling.h ./cpp/common/sampling.h
 cp ./$LLAMA_DIR/common/sampling.cpp ./cpp/common/sampling.cpp
 cp ./$LLAMA_DIR/common/speculative.h ./cpp/common/speculative.h

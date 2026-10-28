@@ -11,7 +11,6 @@
 #include <cstdarg>
 #include <cstring>
 #include <vector>
-#include <sstream>
 
 struct llama_logger_state {
     lm_ggml_log_callback log_callback = llama_log_callback_default;
@@ -149,7 +148,7 @@ std::string llama_format_tensor_shape(const struct lm_ggml_tensor * t) {
     return buf;
 }
 
-static std::string lm_gguf_data_to_str(enum lm_gguf_type type, const void * data, int i) {
+static std::string lm_gguf_data_to_str(enum lm_gguf_type type, const void * data, size_t i) {
     switch (type) {
         case LM_GGUF_TYPE_UINT8:   return std::to_string(((const uint8_t  *)data)[i]);
         case LM_GGUF_TYPE_INT8:    return std::to_string(((const int8_t   *)data)[i]);
@@ -166,7 +165,7 @@ static std::string lm_gguf_data_to_str(enum lm_gguf_type type, const void * data
     }
 }
 
-std::string lm_gguf_kv_to_str(const struct lm_gguf_context * ctx_gguf, int i) {
+std::string lm_gguf_kv_to_str(const struct lm_gguf_context * ctx_gguf, int i, size_t max_len) {
     const enum lm_gguf_type type = lm_gguf_get_kv_type(ctx_gguf, i);
 
     switch (type) {
@@ -175,28 +174,38 @@ std::string lm_gguf_kv_to_str(const struct lm_gguf_context * ctx_gguf, int i) {
         case LM_GGUF_TYPE_ARRAY:
             {
                 const enum lm_gguf_type arr_type = lm_gguf_get_arr_type(ctx_gguf, i);
-                int arr_n = lm_gguf_get_arr_n(ctx_gguf, i);
+                const size_t arr_n = lm_gguf_get_arr_n(ctx_gguf, i);
                 const void * data = arr_type == LM_GGUF_TYPE_STRING ? nullptr : lm_gguf_get_arr_data(ctx_gguf, i);
-                std::stringstream ss;
-                ss << "[";
-                for (int j = 0; j < arr_n; j++) {
-                    if (arr_type == LM_GGUF_TYPE_STRING) {
-                        std::string val = lm_gguf_get_arr_str(ctx_gguf, i, j);
-                        // escape quotes
-                        replace_all(val, "\\", "\\\\");
-                        replace_all(val, "\"", "\\\"");
-                        ss << '"' << val << '"';
-                    } else if (arr_type == LM_GGUF_TYPE_ARRAY) {
-                        ss << "???";
-                    } else {
-                        ss << lm_gguf_data_to_str(arr_type, data, j);
+                std::string res = "[";
+                size_t j = 0;
+                for (; j < arr_n && res.size() <= max_len; j++) {
+                    if (j > 0) {
+                        res += ", ";
                     }
-                    if (j < arr_n - 1) {
-                        ss << ", ";
+                    if (arr_type == LM_GGUF_TYPE_STRING) {
+                        const char * s = lm_gguf_get_arr_str(ctx_gguf, i, j);
+                        const size_t need = res.size() + 2 * strlen(s) + 2;
+                        if (res.capacity() < need) {
+                            res.reserve(std::max(need, 2 * res.capacity()));
+                        }
+                        res += '"';
+                        for (; *s; s++) {
+                            if (*s == '\\' || *s == '"') {
+                                res += '\\';
+                            }
+                            res += *s;
+                        }
+                        res += '"';
+                    } else if (arr_type == LM_GGUF_TYPE_ARRAY) {
+                        res += "???";
+                    } else {
+                        res += lm_gguf_data_to_str(arr_type, data, j);
                     }
                 }
-                ss << "]";
-                return ss.str();
+                if (j == arr_n) {
+                    res += "]";
+                }
+                return res;
             }
         default:
             return lm_gguf_data_to_str(type, lm_gguf_get_val_data(ctx_gguf, i), 0);

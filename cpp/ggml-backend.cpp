@@ -2226,6 +2226,7 @@ bool lm_ggml_op_alloc_size_may_expand(enum lm_ggml_op op) {
         case LM_GGML_OP_CUMSUM:
         case LM_GGML_OP_ARGSORT:
         case LM_GGML_OP_TOP_K:
+        case LM_GGML_OP_ARGMAX:
             return true;
         default:
             return false;

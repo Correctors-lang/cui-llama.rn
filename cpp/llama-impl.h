@@ -107,4 +107,5 @@ std::string format(const char * fmt, ...);
 std::string llama_format_tensor_shape(const std::vector<int64_t> & ne);
 std::string llama_format_tensor_shape(const struct lm_ggml_tensor * t);
 
-std::string lm_gguf_kv_to_str(const struct lm_gguf_context * ctx_gguf, int i);
+// arrays are rendered only until the result is longer than max_len
+std::string lm_gguf_kv_to_str(const struct lm_gguf_context * ctx_gguf, int i, size_t max_len = SIZE_MAX);

@@ -1,0 +1,44 @@
+--- ggml-opencl/ggml-opencl.cpp.orig
++++ ggml-opencl/ggml-opencl.cpp
+@@ -13209,6 +13209,32 @@
+     return lm_ggml_opencl_supports_op(dev, op);
+ }
+ 
++// Cette opération vaut-elle le voyage jusqu'au GPU, alors que ses poids sont
++// restés en mémoire hôte ?
++//
++// Ajouté pour ce projet (2026-10-25). Le backend OpenCL laissait ce rappel à
++// NULL, et le planificateur n'avait donc que deux positions : poids en RAM et
++// GPU jamais sollicité, ou couches déportées et GPU chargé de TOUT, décodage
++// compris. Mesuré sur Adreno 732 avec Qwen2.5-1.5B : tout sur le GPU donne
++// 4,4 jetons/s contre 23,7 au processeur, parce qu'un décodage à un jeton est
++// limité par la bande passante et que le GPU y perd. Le gain du GPU est dans
++// les GROS lots — la lecture de l'invite.
++//
++// Même règle que le backend CUDA, qui porte ce rappel depuis longtemps : à
++// partir de 32 lignes, l'opération part sur le GPU ; en dessous, elle reste
++// sur le processeur. `GET_ROWS` est exclue : elle ne calcule rien, elle
++// recopie, et la faire voyager coûterait plus que de la laisser sur place.
++static bool lm_ggml_backend_opencl_device_offload_op(lm_ggml_backend_dev_t dev, const lm_ggml_tensor * op) {
++    LM_GGML_UNUSED(dev);
++
++    static const int lot_minimal = 32;
++
++    if (op->op == LM_GGML_OP_GET_ROWS) {
++        return false;
++    }
++    return op->ne[1] >= lot_minimal || op->ne[2] >= lot_minimal;
++}
++
+ static bool lm_ggml_backend_opencl_device_supports_buft(lm_ggml_backend_dev_t dev, lm_ggml_backend_buffer_type_t buft) {
+     // Check 'dev' and 'buffer_type' are not objects belonging to this backend.
+     if (dev->iface.get_name != lm_ggml_backend_opencl_device_get_name ||
+@@ -13236,7 +13262,7 @@
+     /* .buffer_from_host_ptr = */ lm_ggml_backend_opencl_device_buffer_from_ptr,
+     /* .supports_op          = */ lm_ggml_backend_opencl_device_supports_op,
+     /* .supports_buft        = */ lm_ggml_backend_opencl_device_supports_buft,
+-    /* .offload_op           = */ NULL,
++    /* .offload_op           = */ lm_ggml_backend_opencl_device_offload_op,
+     /* .event_new            = */ NULL,
+     /* .event_free           = */ NULL,
+     /* .event_synchronize    = */ NULL,

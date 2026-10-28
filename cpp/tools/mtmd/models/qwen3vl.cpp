@@ -13,7 +13,7 @@ lm_ggml_cgraph * clip_graph_qwen3vl::build() {
 
     int mrope_sections[4] = {d_head/4, d_head/4, d_head/4, d_head/4};
 
-    lm_ggml_tensor * inp = build_inp_with_temporal_merge();
+    lm_ggml_tensor * inp = build_inp_temporal_merge();
 
     // spatial merge
     {

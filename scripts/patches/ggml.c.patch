@@ -28,3 +28,30 @@
  }
  #elif defined(__APPLE__)
  #include <execinfo.h>
+@@ -643,6 +643,26 @@
+ 
+     return file;
+ #else
++    // Un « chemin » sans barre oblique est un DESCRIPTEUR DE FICHIER, passé
++    // sous forme décimale. C'est ainsi que l'application Android ouvre un
++    // modèle : elle n'a pas de chemin à donner (le fichier vient d'un
++    // `ContentResolver`), seulement un descripteur, et `jni.cpp` l'écrit en
++    // toutes lettres dans `params.model.path`.
++    //
++    // Ce bloc vivait en dur dans l'arbre aplati, sans patch pour le porter :
++    // la régénération de `cpp/` l'a donc emporté, et le chargement échouait
++    // avec « failed to open GGUF file '204' (No such file or directory) »
++    // (montée vers v0.7.0, mesuré sur le téléphone le 2026-10-24).
++    if (strchr(fname, '/') == NULL) {
++        char *endptr;
++        long num = strtol(fname, &endptr, 10);
++        if (endptr != fname && *endptr == '\0') {
++            FILE *file = fdopen(dup(num), mode);
++            if (file != NULL) {
++                return file;
++            }
++        }
++    }
+     return fopen(fname, mode);
+ #endif
+ 

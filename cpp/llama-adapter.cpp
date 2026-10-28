@@ -179,13 +179,13 @@ static void llama_adapter_lora_init_impl(llama_model & model, FILE * file, llama
                 ? format("%s[%s,%zu]", lm_gguf_type_name(type), lm_gguf_type_name(lm_gguf_get_arr_type(lm_gguf_ctx, i)), lm_gguf_get_arr_n(lm_gguf_ctx, i))
                 : lm_gguf_type_name(type);
             const char * name = lm_gguf_get_key(lm_gguf_ctx, i);
-            const std::string value = lm_gguf_kv_to_str(lm_gguf_ctx, i);
+            const size_t MAX_VALUE_LEN = 40;
+            const std::string value = lm_gguf_kv_to_str(lm_gguf_ctx, i, MAX_VALUE_LEN);
 
             if (type != LM_GGUF_TYPE_ARRAY) {
                 adapter.lm_gguf_kv.emplace(name, value);
             }
 
-            const size_t MAX_VALUE_LEN = 40;
             std::string print_value = value.size() > MAX_VALUE_LEN ? format("%s...", value.substr(0, MAX_VALUE_LEN - 3).c_str()) : value;
             replace_all(print_value, "\n", "\\n");
 
@@ -334,9 +334,10 @@ static void llama_adapter_lora_init_impl(llama_model & model, FILE * file, llama
         if (!model_tensor) {
             throw std::runtime_error("LoRA tensor '" + name + "' does not exist in base model (hint: maybe wrong base model?)");
         }
-        // the LoRA delta of a Hadamard-folded weight reads the transformed input, so the result is wrong
-        if (model.hdmd.weight_blocks.count(name) || model.hdmd.inverse_blocks.count(name)) {
-            throw std::runtime_error("LoRA tensor '" + name + "' targets a prism.hadamard folded weight, which is not supported");
+        // build_lora_mm feeds a folded weight's LoRA delta the primal input, so folded matmul weights are fine;
+        // a latent lookup table (token_embd, also the head when the output is tied) stores rotated rows, refuse it
+        if (model.hdmd.inverse_blocks.count(name)) {
+            throw std::runtime_error("LoRA tensor '" + name + "' targets a prism.hadamard latent lookup table, which is not supported");
         }
 
         auto * buft = lm_ggml_backend_buffer_get_type(model_tensor->buffer);

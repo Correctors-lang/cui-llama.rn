@@ -1046,7 +1046,8 @@ static struct lm_ggml_backend_meta_split_state lm_ggml_backend_meta_get_split_st
             } break;
             case LM_GGML_OP_DSV4_HC_COMB:
             case LM_GGML_OP_DSV4_HC_PRE:
-            case LM_GGML_OP_DSV4_HC_POST: {
+            case LM_GGML_OP_DSV4_HC_POST:
+            case LM_GGML_OP_TOP_K_MASK: {
                 split_state = handle_generic(src_ss, /*scalar_only =*/ true);
             } break;
             case LM_GGML_OP_UNARY: {

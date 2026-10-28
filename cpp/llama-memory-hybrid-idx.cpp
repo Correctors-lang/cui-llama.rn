@@ -758,7 +758,7 @@ void llama_memory_hybrid_idx_context::set_input_kpool(lm_ggml_tensor * pool_cell
     LM_GGML_ASSERT(tail_idxs->ne[0] == (int64_t) kpool - 1 && tail_idxs->ne[1] == (int64_t) n_tokens);
     LM_GGML_ASSERT(pool_idxs->ne[0] == (int64_t) kpool && pool_idxs->ne[1] == (int64_t) n_pool);
     LM_GGML_ASSERT(lm_ggml_backend_buffer_is_host(new_pool_idxs->buffer));
-    LM_GGML_ASSERT(new_pool_idxs->ne[0] == (int64_t) kpool && new_pool_idxs->ne[1] == (int64_t) n_new_g);
+    LM_GGML_ASSERT(lm_ggml_nelements(new_pool_idxs) == (int64_t) kpool*n_new_g);
     // the graph always scatters the fresh pooled keys back into the cache, see build_qsa_sel
     LM_GGML_ASSERT(new_pool_rep != nullptr && lm_ggml_backend_buffer_is_host(new_pool_rep->buffer));
     LM_GGML_ASSERT(new_pool_rep->ne[0] == (int64_t) n_new_g);

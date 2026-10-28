@@ -114,6 +114,8 @@ enum llm_type {
     LLM_TYPE_16x3_8B,
     LLM_TYPE_10B_128x3_66B,
     LLM_TYPE_57B_A14B,
+    LLM_TYPE_816B_A42B,
+    LLM_TYPE_78B_A3_5B,  // Kolibri1
     LLM_TYPE_17B_16E, // llama4 Scout
     LLM_TYPE_17B_128E, // llama4 Maverick
     LLM_TYPE_A13B,
@@ -309,6 +311,7 @@ struct llama_layer {
     struct lm_ggml_tensor * wv_enc    = nullptr;
     struct lm_ggml_tensor * wo_enc    = nullptr;
     struct lm_ggml_tensor * wqkv_gate = nullptr;
+    struct lm_ggml_tensor * wqkv_gate_b = nullptr;
     // K2 Horizon MoVA
     struct lm_ggml_tensor * attn_v_gate   = nullptr;
     struct lm_ggml_tensor * attn_v_gate_b = nullptr;
@@ -326,6 +329,8 @@ struct llama_layer {
     struct lm_ggml_tensor * ffn_post_norm_1  = nullptr; // gemma4
     struct lm_ggml_tensor * ffn_post_norm_2  = nullptr; // gemma4
     struct lm_ggml_tensor * ffn_pre_norm_2   = nullptr; // gemma4
+    struct lm_ggml_tensor * ffn_norm_ada_down = nullptr; // voxtral realtime
+    struct lm_ggml_tensor * ffn_norm_ada_up   = nullptr; // voxtral realtime
     struct lm_ggml_tensor * layer_out_norm   = nullptr;
     struct lm_ggml_tensor * layer_out_norm_b = nullptr;
     struct lm_ggml_tensor * ffn_norm_exps    = nullptr;
@@ -360,6 +365,16 @@ struct llama_layer {
     // ff MoE latent proj
     struct lm_ggml_tensor * ffn_latent_down = nullptr;
     struct lm_ggml_tensor * ffn_latent_up   = nullptr;
+
+    // ff MoE norms around the experts, in latent space
+    struct lm_ggml_tensor * ffn_pre_exp_norm  = nullptr;
+    struct lm_ggml_tensor * ffn_post_exp_norm = nullptr;
+
+    // norm preserving residual coefficients
+    struct lm_ggml_tensor * attn_resid_alpha = nullptr;
+    struct lm_ggml_tensor * attn_resid_beta  = nullptr;
+    struct lm_ggml_tensor * ffn_resid_alpha  = nullptr;
+    struct lm_ggml_tensor * ffn_resid_beta   = nullptr;
 
     // ff shared expert (shexp)
     struct lm_ggml_tensor * ffn_gate_inp_shexp = nullptr;
@@ -590,6 +605,10 @@ struct llama_layer {
     struct lm_ggml_tensor * indexer_kpool_gate = nullptr;
     struct lm_ggml_tensor * indexer_kpool_ape  = nullptr;
 
+    // deepseek41
+    struct lm_ggml_tensor * engram_kv   = nullptr;
+    struct lm_ggml_tensor * engram_gate = nullptr; // q_weight*k_weight folded
+
     // MSA
     struct lm_ggml_tensor * index_q_proj = nullptr;
     struct lm_ggml_tensor * index_k_proj = nullptr;
@@ -709,6 +728,7 @@ struct llama_model {
 
     // for classifier models
     std::vector<std::string> classifier_labels;
+    std::vector<std::string> decision_labels;
 
     struct lm_ggml_tensor * tok_embd   = nullptr;
     struct lm_ggml_tensor * type_embd  = nullptr;
@@ -763,8 +783,9 @@ struct llama_model {
     struct lm_ggml_tensor * per_layer_proj_norm  = nullptr;
 
     // eagle3 / dflash feature fusion layer
-    struct lm_ggml_tensor * fc   = nullptr;
-    struct lm_ggml_tensor * fc_s = nullptr;
+    struct lm_ggml_tensor * fc      = nullptr;
+    struct lm_ggml_tensor * fc_s    = nullptr;
+    struct lm_ggml_tensor * fc_in_s = nullptr;
     struct lm_ggml_tensor * d2t = nullptr;  // draft to target vocabulary mapping
 
     // dspark

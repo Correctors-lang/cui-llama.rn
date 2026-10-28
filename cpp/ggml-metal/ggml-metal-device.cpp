@@ -1225,40 +1225,6 @@ lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mv(lm_
     return res;
 }
 
-lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_amax_part(lm_ggml_metal_library_t lib) {
-    char base[256];
-    char name[256];
-
-    snprintf(base, 256, "kernel_mul_mm_id_amax_part_f32");
-    snprintf(name, 256, "%s", base);
-
-    lm_ggml_metal_pipeline_with_params res = lm_ggml_metal_library_get_pipeline(lib, name);
-    if (!res.pipeline) {
-        res = lm_ggml_metal_library_compile_pipeline(lib, base, name, nullptr);
-    }
-
-    res.smem = 32*sizeof(float);
-
-    return res;
-}
-
-lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_amax(lm_ggml_metal_library_t lib) {
-    char base[256];
-    char name[256];
-
-    snprintf(base, 256, "kernel_mul_mm_id_amax_f32");
-    snprintf(name, 256, "%s", base);
-
-    lm_ggml_metal_pipeline_with_params res = lm_ggml_metal_library_get_pipeline(lib, name);
-    if (!res.pipeline) {
-        res = lm_ggml_metal_library_compile_pipeline(lib, base, name, nullptr);
-    }
-
-    res.smem = 32*sizeof(float);
-
-    return res;
-}
-
 lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_map0(lm_ggml_metal_library_t lib, int ne02, int ne20) {
     char base[256];
     char name[256];
@@ -1283,6 +1249,15 @@ lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_
     return res;
 }
 
+lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id_zero(lm_ggml_metal_library_t lib) {
+    lm_ggml_metal_pipeline_with_params res = lm_ggml_metal_library_get_pipeline(lib, "kernel_mul_mm_id_zero");
+    if (!res.pipeline) {
+        res = lm_ggml_metal_library_compile_pipeline(lib, "kernel_mul_mm_id_zero", "kernel_mul_mm_id_zero", nullptr);
+    }
+
+    return res;
+}
+
 lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id(lm_ggml_metal_library_t lib, const lm_ggml_tensor * op) {
     char base[256];
     char name[256];
@@ -1292,18 +1267,14 @@ lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_mul_mm_id(
 
     const bool bc_inp = op->src[0]->ne[0] % 32 != 0;
 
-    // src1 prec [TAG_LM_GGML_PREC]
-    const bool amax = lm_ggml_get_op_params_i32(op, 3) == LM_GGML_PREC_F32;
-
     snprintf(base, 256, "kernel_mul_mm_id_%s_%s", lm_ggml_type_name(tsrc0), lm_ggml_type_name(tsrc1));
-    snprintf(name, 256, "%s_bci=%d_amax=%d", base, bc_inp, amax);
+    snprintf(name, 256, "%s_bci=%d", base, bc_inp);
 
     lm_ggml_metal_pipeline_with_params res = lm_ggml_metal_library_get_pipeline(lib, name);
     if (!res.pipeline) {
         lm_ggml_metal_cv_t cv = lm_ggml_metal_cv_init();
 
         lm_ggml_metal_cv_set_bool(cv, bc_inp, FC_MUL_MM + 0);
-        lm_ggml_metal_cv_set_bool(cv, amax,   FC_MUL_MM + 6);
 
         res = lm_ggml_metal_library_compile_pipeline(lib, base, name, cv);
 
@@ -1560,6 +1531,28 @@ lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_argmax(lm_
     lm_ggml_metal_pipeline_with_params res = lm_ggml_metal_library_get_pipeline(lib, name);
     if (!res.pipeline) {
         res = lm_ggml_metal_library_compile_pipeline(lib, base, name, nullptr);
+    }
+
+    res.smem = 32*(sizeof(float) + sizeof(int32_t));
+
+    return res;
+}
+
+lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_argmax_part(lm_ggml_metal_library_t lib) {
+    lm_ggml_metal_pipeline_with_params res = lm_ggml_metal_library_get_pipeline(lib, "kernel_argmax_part_f32");
+    if (!res.pipeline) {
+        res = lm_ggml_metal_library_compile_pipeline(lib, "kernel_argmax_part_f32", "kernel_argmax_part_f32", nullptr);
+    }
+
+    res.smem = 32*(sizeof(float) + sizeof(int32_t));
+
+    return res;
+}
+
+lm_ggml_metal_pipeline_with_params lm_ggml_metal_library_get_pipeline_argmax_final(lm_ggml_metal_library_t lib) {
+    lm_ggml_metal_pipeline_with_params res = lm_ggml_metal_library_get_pipeline(lib, "kernel_argmax_final_f32");
+    if (!res.pipeline) {
+        res = lm_ggml_metal_library_compile_pipeline(lib, "kernel_argmax_final_f32", "kernel_argmax_final_f32", nullptr);
     }
 
     res.smem = 32*(sizeof(float) + sizeof(int32_t));
